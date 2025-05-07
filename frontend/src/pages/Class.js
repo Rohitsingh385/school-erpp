@@ -7,14 +7,14 @@ export default function Class() {
   const { user } = useAuth();
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     section: '',
-    teacher: '',
-    capacity: ''
+    capacity: '',
+    teacher: ''
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchClasses();
@@ -23,86 +23,79 @@ export default function Class() {
 
   const fetchClasses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/class', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await axios.get('http://localhost:5000/api/class');
       setClasses(response.data);
-      setLoading(false);
+      setError('');
     } catch (error) {
-      setError('Failed to fetch classes');
+      console.error('Error fetching classes:', error);
+      setError('Failed to fetch classes. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
   const fetchTeachers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/teacher', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await axios.get('http://localhost:5000/api/teacher');
       setTeachers(response.data);
     } catch (error) {
       console.error('Error fetching teachers:', error);
+      setError('Failed to fetch teachers. Please try again.');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/class', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      setFormData({
-        name: '',
-        section: '',
-        teacher: '',
-        capacity: ''
-      });
-      fetchClasses();
-    } catch (error) {
-      setError('Failed to add class');
-    }
-  };
+    setError('');
+    setLoading(true);
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    try {
+      const response = await axios.post('http://localhost:5000/api/class', formData);
+      if (response.data) {
+        setFormData({
+          name: '',
+          section: '',
+          capacity: '',
+          teacher: ''
+        });
+        await fetchClasses();
+        alert('Class added successfully!');
+      }
+    } catch (error) {
+      console.error('Error adding class:', error);
+      setError('Failed to add class. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (classId) => {
     if (window.confirm('Are you sure you want to delete this class?')) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/class/${classId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        fetchClasses();
+        await axios.delete(`http://localhost:5000/api/class/${classId}`);
+        await fetchClasses();
+        alert('Class deleted successfully!');
       } catch (error) {
-        setError('Failed to delete class');
+        console.error('Error deleting class:', error);
+        setError('Failed to delete class. Please try again.');
       }
     }
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+      </div>
+    );
   }
 
   return (
     <div className="class-container">
       <h1>Classes</h1>
       
+      {error && <div className="error-message">{error}</div>}
+
       <form onSubmit={handleSubmit} className="class-form">
         <div className="form-group">
           <label htmlFor="name">Class Name</label>
@@ -111,7 +104,7 @@ export default function Class() {
             id="name"
             name="name"
             value={formData.name}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
           />
         </div>
@@ -123,18 +116,30 @@ export default function Class() {
             id="section"
             name="section"
             value={formData.section}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, section: e.target.value })}
             required
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="teacher">Teacher (Optional)</label>
+          <label htmlFor="capacity">Capacity</label>
+          <input
+            type="number"
+            id="capacity"
+            name="capacity"
+            value={formData.capacity}
+            onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="teacher">Class Teacher (Optional)</label>
           <select
             id="teacher"
             name="teacher"
             value={formData.teacher}
-            onChange={handleChange}
+            onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
           >
             <option value="">Select a teacher</option>
             {teachers.map((teacher) => (
@@ -145,22 +150,10 @@ export default function Class() {
           </select>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="capacity">Capacity</label>
-          <input
-            type="number"
-            id="capacity"
-            name="capacity"
-            value={formData.capacity}
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        <button type="submit" className="submit-button">Add Class</button>
+        <button type="submit" className="submit-button" disabled={loading}>
+          {loading ? 'Adding...' : 'Add Class'}
+        </button>
       </form>
-
-      {error && <div className="error-message">{error}</div>}
 
       <div className="classes-list">
         <h2>Class List</h2>
@@ -169,8 +162,8 @@ export default function Class() {
             <tr>
               <th>Class Name</th>
               <th>Section</th>
-              <th>Teacher</th>
               <th>Capacity</th>
+              <th>Class Teacher</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -179,8 +172,8 @@ export default function Class() {
               <tr key={cls._id}>
                 <td>{cls.name}</td>
                 <td>{cls.section}</td>
-                <td>{cls.teacher ? cls.teacher.name : 'Not Assigned'}</td>
                 <td>{cls.capacity}</td>
+                <td>{cls.teacher ? `${cls.teacher.name} (${cls.teacher.subject})` : 'Not Assigned'}</td>
                 <td>
                   <button
                     onClick={() => handleDelete(cls._id)}

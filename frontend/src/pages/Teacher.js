@@ -26,16 +26,13 @@ export default function Teacher() {
 
   const fetchTeachers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/teacher', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await axios.get('http://localhost:5000/api/teacher');
       setTeachers(response.data);
-      setLoading(false);
+      setError('');
     } catch (error) {
-      setError('Failed to fetch teachers');
+      console.error('Error fetching teachers:', error);
+      setError('Failed to fetch teachers. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -46,46 +43,47 @@ export default function Teacher() {
       setClasses(response.data);
     } catch (error) {
       console.error('Error fetching classes:', error);
+      setError('Failed to fetch classes. Please try again.');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
+
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/teacher', formData, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        subject: '',
-        qualification: '',
-        experience: '',
-        classes: []
-      });
-      fetchTeachers();
+      const response = await axios.post('http://localhost:5000/api/teacher', formData);
+      if (response.data) {
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          subject: '',
+          qualification: '',
+          experience: '',
+          classes: []
+        });
+        await fetchTeachers();
+        alert('Teacher added successfully!');
+      }
     } catch (error) {
-      setError('Failed to add teacher');
+      console.error('Error adding teacher:', error);
+      setError('Failed to add teacher. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDelete = async (teacherId) => {
     if (window.confirm('Are you sure you want to delete this teacher?')) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/teacher/${teacherId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        fetchTeachers();
+        await axios.delete(`http://localhost:5000/api/teacher/${teacherId}`);
+        await fetchTeachers();
         alert('Teacher deleted successfully!');
       } catch (error) {
         console.error('Error deleting teacher:', error);
+        setError('Failed to delete teacher. Please try again.');
       }
     }
   };
@@ -100,13 +98,19 @@ export default function Teacher() {
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+      </div>
+    );
   }
 
   return (
     <div className="teacher-container">
       <h1>Teachers</h1>
       
+      {error && <div className="error-message">{error}</div>}
+
       <form onSubmit={handleSubmit} className="teacher-form">
         <div className="form-group">
           <label htmlFor="name">Name</label>
@@ -181,30 +185,25 @@ export default function Teacher() {
         </div>
 
         <div className="form-group">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Assigned Classes
-          </label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <label>Assigned Classes</label>
+          <div className="classes-grid">
             {classes.map((cls) => (
-              <label key={cls._id} className="inline-flex items-center">
+              <label key={cls._id} className="class-checkbox">
                 <input
                   type="checkbox"
                   checked={formData.classes.includes(cls._id)}
                   onChange={() => handleClassChange(cls._id)}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                 />
-                <span className="ml-2 text-sm text-gray-700">
-                  {cls.name} - {cls.section}
-                </span>
+                <span>{cls.name} - {cls.section}</span>
               </label>
             ))}
           </div>
         </div>
 
-        <button type="submit" className="submit-button">Add Teacher</button>
+        <button type="submit" className="submit-button" disabled={loading}>
+          {loading ? 'Adding...' : 'Add Teacher'}
+        </button>
       </form>
-
-      {error && <div className="error-message">{error}</div>}
 
       <div className="teachers-list">
         <h2>Teacher List</h2>
@@ -234,7 +233,7 @@ export default function Teacher() {
                 <td>
                   <button
                     onClick={() => handleDelete(teacher._id)}
-                    className="text-red-600 hover:text-red-900"
+                    className="delete-button"
                   >
                     Delete
                   </button>
