@@ -168,7 +168,7 @@ curl -X POST http://localhost:5000/api/auth/register \
 
 ---
 
-## 📊 The Command Center (Dashboard)
+### 📊 The Command Center (Dashboard)
 
 * After a successful login, you're taken to the **dashboard**.
 * It provides a **bird’s-eye view** of the school’s key metrics:
