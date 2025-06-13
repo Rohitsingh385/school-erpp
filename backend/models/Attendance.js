@@ -1,3 +1,15 @@
+/*
+  ✨ Coded with vibes by Rowhit (@rohiteeee)
+
+  🔗 GitHub:   github.com/Rohitsingh385
+  💼 LinkedIn: linkedin.com/in/rohiteeee
+  📧 Email:    rk301855@gmail.com
+
+  🧃 If you're using this, toss some credit — it's only fair.
+  🧠 Built from scratch, not snatched. Respect the grind.
+  
+*/
+
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
@@ -17,17 +29,23 @@ const attendanceSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['present', 'absent'],
-    required: true
+    enum: ['present', 'absent', 'late', 'halfday', 'leave'],
+    default: 'present'
+  },
+  remarks: {
+    type: String
   },
   markedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-// Compound index to prevent duplicate attendance records
+// Compound index to ensure a student has only one attendance record per day
 attendanceSchema.index({ student: 1, date: 1 }, { unique: true });
 
-module.exports = mongoose.model('Attendance', attendanceSchema); 
+module.exports = mongoose.model('Attendance', attendanceSchema);

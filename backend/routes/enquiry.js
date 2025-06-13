@@ -1,16 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const Enquiry = require('../models/Enquiry');
 const { auth, adminAuth } = require('../middleware/auth');
+
+// Simple in-memory storage for enquiries (replace with database model in production)
+let enquiries = [];
+let nextId = 1;
 
 // @route   GET api/enquiry
 // @desc    Get all enquiries
-// @access  Private
-router.get('/', auth, async (req, res) => {
+// @access  Public (for development)
+router.get('/', async (req, res) => {
   try {
-    // TODO: Implement enquiry fetching logic
-    res.json({ message: 'Get all enquiries' });
+    res.json(enquiries);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -18,86 +20,83 @@ router.get('/', auth, async (req, res) => {
 });
 
 // @route   POST api/enquiry
-// @desc    Create an enquiry
+// @desc    Create a new enquiry
 // @access  Public
-router.post('/', async (req, res) => {
+router.post(
+  '/',
+  [
+    body('name', 'Name is required').not().isEmpty(),
+    body('phone', 'Phone is required').not().isEmpty(),
+    body('email', 'Please include a valid email').isEmail(),
+    body('message', 'Message is required').not().isEmpty()
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const { name, phone, email, message } = req.body;
+
+      const enquiry = {
+        id: nextId++,
+        name,
+        phone,
+        email,
+        message,
+        status: 'new',
+        createdAt: new Date()
+      };
+
+      enquiries.push(enquiry);
+      res.status(201).json(enquiry);
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server Error');
+    }
+  }
+);
+
+// @route   PUT api/enquiry/:id
+// @desc    Update enquiry status
+// @access  Private/Admin
+router.put('/:id', adminAuth, async (req, res) => {
   try {
-    // TODO: Implement enquiry creation logic
-    res.json({ message: 'Create an enquiry' });
+    const { status } = req.body;
+    const id = parseInt(req.params.id);
+
+    const enquiryIndex = enquiries.findIndex(e => e.id === id);
+    if (enquiryIndex === -1) {
+      return res.status(404).json({ message: 'Enquiry not found' });
+    }
+
+    enquiries[enquiryIndex].status = status;
+    res.json(enquiries[enquiryIndex]);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
 
-// Get all enquiries (admin only)
-router.get('/admin', adminAuth, async (req, res) => {
-  try {
-    const enquiries = await Enquiry.find().sort({ createdAt: -1 });
-    res.json(enquiries);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Create new enquiry (public)
-router.post('/',
-  [
-    body('name').notEmpty().trim(),
-    body('email').isEmail().normalizeEmail(),
-    body('phone').notEmpty().trim(),
-    body('subject').notEmpty().trim(),
-    body('message').notEmpty().trim()
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const enquiry = new Enquiry(req.body);
-      await enquiry.save();
-      res.status(201).json(enquiry);
-    } catch (error) {
-      res.status(500).json({ message: 'Server error' });
-    }
-  }
-);
-
-// Update enquiry status (admin only)
-router.put('/:id', adminAuth, async (req, res) => {
-  try {
-    const { status, response } = req.body;
-    const enquiry = await Enquiry.findById(req.params.id);
-    
-    if (!enquiry) {
-      return res.status(404).json({ message: 'Enquiry not found' });
-    }
-
-    enquiry.status = status;
-    enquiry.response = response;
-    enquiry.handledBy = req.user._id;
-    enquiry.updatedAt = Date.now();
-
-    await enquiry.save();
-    res.json(enquiry);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Delete enquiry (admin only)
+// @route   DELETE api/enquiry/:id
+// @desc    Delete an enquiry
+// @access  Private/Admin
 router.delete('/:id', adminAuth, async (req, res) => {
   try {
-    const enquiry = await Enquiry.findByIdAndDelete(req.params.id);
-    if (!enquiry) {
+    const id = parseInt(req.params.id);
+    const enquiryIndex = enquiries.findIndex(e => e.id === id);
+    
+    if (enquiryIndex === -1) {
       return res.status(404).json({ message: 'Enquiry not found' });
     }
-    res.json({ message: 'Enquiry deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    
+    enquiries = enquiries.filter(e => e.id !== id);
+    res.json({ message: 'Enquiry removed' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 
-module.exports = router; 
+module.exports = router;

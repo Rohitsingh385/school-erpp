@@ -1,3 +1,15 @@
+/*
+  ✨ Coded with vibes by Rowhit (@rohiteeee)
+
+  🔗 GitHub:   github.com/Rohitsingh385
+  💼 LinkedIn: linkedin.com/in/rohiteeee
+  📧 Email:    rk301855@gmail.com
+
+  🧃 If you're using this, toss some credit — it's only fair.
+  🧠 Built from scratch, not snatched. Respect the grind.
+  
+*/
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,7 +94,7 @@ export default function Dashboard() {
         <p className="dashboard-subtitle">Here's what's happening in your school today.</p>
       </div>
 
-      <div className="stats-grid">
+      <div className="stats-grid animate-fade">
         <StatCard
           title="Total Students"
           value={stats.totalStudents}
@@ -113,7 +125,9 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="quick-actions">
+
+
+      <div className="quick-actions animate-slide-in">
         <h2>Quick Actions</h2>
         <div className="quick-actions-grid">
           <QuickAction

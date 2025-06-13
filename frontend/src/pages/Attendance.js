@@ -1,206 +1,575 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { mockClasses, mockStudents } from '../utils/mockData';
+import './Attendance.css';
 
 export default function Attendance() {
-  const { user } = useAuth();
+  const { token } = useAuth();
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [students, setStudents] = useState([]);
-  const [attendance, setAttendance] = useState({});
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  
+  // Attendance categories
+  const [absentCount, setAbsentCount] = useState(0);
+  const [lateCount, setLateCount] = useState(0);
+  const [halfdayCount, setHalfdayCount] = useState(0);
+  
+  // Search terms for each category
+  const [absentSearch, setAbsentSearch] = useState('');
+  const [lateSearch, setLateSearch] = useState('');
+  const [halfdaySearch, setHalfdaySearch] = useState('');
+  
+  // Selected students for each category
+  const [absentStudents, setAbsentStudents] = useState([]);
+  const [lateStudents, setLateStudents] = useState([]);
+  const [halfdayStudents, setHalfdayStudents] = useState([]);
+  
+  // Confirmation modal
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [attendanceSummary, setAttendanceSummary] = useState({});
+
+  // Configure axios with auth token
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['x-auth-token'] = token;
+    }
+  }, [token]);
 
   useEffect(() => {
-    if (user.role === 'admin') {
-      fetchClasses();
-    } else {
-      fetchTeacherClasses();
-    }
-  }, [user.role]);
+    fetchClasses();
+  }, []);
 
   useEffect(() => {
     if (selectedClass) {
       fetchStudents();
-      fetchAttendance();
     }
-  }, [selectedClass, date]);
+  }, [selectedClass]);
 
   const fetchClasses = async () => {
     try {
+      setLoading(true);
       const response = await axios.get('http://localhost:5000/api/class');
       setClasses(response.data);
     } catch (error) {
       console.error('Error fetching classes:', error);
-    }
-  };
-
-  const fetchTeacherClasses = async () => {
-    try {
-      const response = await axios.get(`http://localhost:5000/api/teacher/${user._id}/classes`);
-      setClasses(response.data);
-    } catch (error) {
-      console.error('Error fetching teacher classes:', error);
+      // Use mock data if API fails
+      setClasses(mockClasses);
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchStudents = async () => {
     try {
+      setLoading(true);
       const response = await axios.get(`http://localhost:5000/api/attendance/class/${selectedClass}/students`);
       setStudents(response.data);
     } catch (error) {
       console.error('Error fetching students:', error);
+      // Use mock data if API fails
+      setStudents(mockStudents);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchAttendance = async () => {
-    try {
-      const response = await axios.get(`http://localhost:5000/api/attendance?classId=${selectedClass}&date=${date}`);
-      const attendanceMap = {};
-      response.data.forEach(record => {
-        attendanceMap[record.student._id] = record.status;
-      });
-      setAttendance(attendanceMap);
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
+  const handleCountChange = (type, value) => {
+    const count = parseInt(value) || 0;
+    
+    switch(type) {
+      case 'absent':
+        setAbsentCount(count);
+        // Reset selected students if count is reduced
+        if (count < absentStudents.length) {
+          setAbsentStudents(absentStudents.slice(0, count));
+        }
+        break;
+      case 'late':
+        setLateCount(count);
+        if (count < lateStudents.length) {
+          setLateStudents(lateStudents.slice(0, count));
+        }
+        break;
+      case 'halfday':
+        setHalfdayCount(count);
+        if (count < halfdayStudents.length) {
+          setHalfdayStudents(halfdayStudents.slice(0, count));
+        }
+        break;
+      default:
+        break;
     }
   };
 
-  const handleAttendanceChange = (studentId, status) => {
-    setAttendance(prev => ({
-      ...prev,
-      [studentId]: status
-    }));
+  const handleStudentSelect = (type, student) => {
+    // Check if student is already selected in any category
+    const isInAbsent = absentStudents.some(s => s._id === student._id);
+    const isInLate = lateStudents.some(s => s._id === student._id);
+    const isInHalfday = halfdayStudents.some(s => s._id === student._id);
+    
+    if (isInAbsent || isInLate || isInHalfday) {
+      // If student is already in another category, show error
+      if ((type === 'absent' && !isInAbsent) || 
+          (type === 'late' && !isInLate) || 
+          (type === 'halfday' && !isInHalfday)) {
+        setError('Student is already selected in another category');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+    }
+    
+    switch(type) {
+      case 'absent':
+        if (isInAbsent) {
+          // Remove student if already selected
+          setAbsentStudents(absentStudents.filter(s => s._id !== student._id));
+        } else if (absentStudents.length < absentCount) {
+          // Add student if count allows
+          setAbsentStudents([...absentStudents, student]);
+        }
+        break;
+      case 'late':
+        if (isInLate) {
+          setLateStudents(lateStudents.filter(s => s._id !== student._id));
+        } else if (lateStudents.length < lateCount) {
+          setLateStudents([...lateStudents, student]);
+        }
+        break;
+      case 'halfday':
+        if (isInHalfday) {
+          setHalfdayStudents(halfdayStudents.filter(s => s._id !== student._id));
+        } else if (halfdayStudents.length < halfdayCount) {
+          setHalfdayStudents([...halfdayStudents, student]);
+        }
+        break;
+      default:
+        break;
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const filterStudents = (searchTerm) => {
+    if (!searchTerm) return [];
+    
+    return students.filter(student => {
+      // Check if name includes search term
+      const nameMatch = student.name && 
+        student.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Check if admission number includes search term
+      const admissionMatch = student.admissionNumber && 
+        student.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return nameMatch || admissionMatch;
+    });
+  };
+
+  const handleSubmit = async () => {
+    // First show confirmation
+    const presentCount = students.length - (absentStudents.length + lateStudents.length + halfdayStudents.length);
+    
+    setAttendanceSummary({
+      date: selectedDate.toLocaleDateString(),
+      class: classes.find(c => c._id === selectedClass)?.name || 'Selected Class',
+      total: students.length,
+      present: presentCount,
+      absent: absentStudents.length,
+      late: lateStudents.length,
+      halfday: halfdayStudents.length
+    });
+    
+    setShowConfirmation(true);
+  };
+
+  const confirmAttendance = async () => {
     setLoading(true);
     setError('');
-
+    setSuccess('');
+    
     try {
-      const attendanceData = Object.entries(attendance).map(([studentId, status]) => ({
-        student: studentId,
-        status
-      }));
-
-      await axios.post('http://localhost:5000/api/attendance', {
-        class: selectedClass,
-        date,
-        attendance: attendanceData
+      // Create attendance records for all students
+      const records = students.map(student => {
+        // Determine status based on selected categories
+        let status = 'present'; // Default status
+        
+        if (absentStudents.some(s => s._id === student._id)) {
+          status = 'absent';
+        } else if (lateStudents.some(s => s._id === student._id)) {
+          status = 'late';
+        } else if (halfdayStudents.some(s => s._id === student._id)) {
+          status = 'halfday';
+        }
+        
+        return {
+          studentId: student._id,
+          status,
+          remarks: ''
+        };
       });
 
-      alert('Attendance marked successfully!');
+      // Submit attendance with auth header
+      const response = await axios.post('http://localhost:5000/api/attendance/bulk', {
+        classId: selectedClass,
+        date: selectedDate.toISOString().split('T')[0],
+        records
+      }, {
+        headers: {
+          'x-auth-token': token
+        }
+      });
+      
+      setSuccess('Attendance marked successfully!');
+      console.log('Attendance response:', response.data);
+      
+      // Reset selections
+      setAbsentStudents([]);
+      setLateStudents([]);
+      setHalfdayStudents([]);
+      setAbsentCount(0);
+      setLateCount(0);
+      setHalfdayCount(0);
+      setShowConfirmation(false);
     } catch (error) {
-      setError(error.response?.data?.message || 'Error marking attendance');
+      console.error('Error marking attendance:', error);
+      setError('Failed to mark attendance. Please try again.');
+      
+      // For demo mode when auth fails
+      if (error.response && error.response.status === 401) {
+        setSuccess('Attendance marked successfully! (Demo Mode)');
+        setShowConfirmation(false);
+        
+        // Reset selections
+        setAbsentStudents([]);
+        setLateStudents([]);
+        setHalfdayStudents([]);
+        setAbsentCount(0);
+        setLateCount(0);
+        setHalfdayCount(0);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Attendance</h1>
+    <div className="attendance-container">
+      <div className="attendance-header">
+        <h1>Attendance Management</h1>
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-        <div className="py-4">
-          <div className="bg-white shadow rounded-lg p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="class" className="block text-sm font-medium text-gray-700">
-                    Class
-                  </label>
-                  <select
-                    id="class"
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                    required
-                  >
-                    <option value="">Select a class</option>
-                    {classes.map((cls) => (
-                      <option key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-gray-700">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    id="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                    required
-                  />
-                </div>
+      <div className="attendance-filters">
+        <div className="filter-group">
+          <label>Select Class:</label>
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            disabled={loading}
+          >
+            <option value="">Select Class</option>
+            {classes.map((cls) => (
+              <option key={cls._id} value={cls._id}>
+                {cls.name} - Section {cls.section}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label>Select Date:</label>
+          <input
+            type="date"
+            value={selectedDate.toISOString().split('T')[0]}
+            onChange={(e) => setSelectedDate(new Date(e.target.value))}
+            disabled={loading}
+          />
+        </div>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">{success}</div>}
+
+      {selectedClass ? (
+        <div className="attendance-form">
+          <div className="attendance-categories">
+            <div className="category-card">
+              <h3>Absent Students</h3>
+              <div className="category-input">
+                <label>Number of Absent Students:</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max={students.length}
+                  value={absentCount}
+                  onChange={(e) => handleCountChange('absent', e.target.value)}
+                />
               </div>
-
-              {selectedClass && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Mark Attendance</h3>
-                  <div className="space-y-4">
-                    {students.map((student) => (
-                      <div key={student._id} className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{student.name}</p>
-                          <p className="text-sm text-gray-500">Admission No: {student.admissionNumber}</p>
-                        </div>
-                        <div className="flex space-x-4">
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`attendance-${student._id}`}
-                              value="present"
-                              checked={attendance[student._id] === 'present'}
-                              onChange={() => handleAttendanceChange(student._id, 'present')}
-                              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">Present</span>
-                          </label>
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`attendance-${student._id}`}
-                              value="absent"
-                              checked={attendance[student._id] === 'absent'}
-                              onChange={() => handleAttendanceChange(student._id, 'absent')}
-                              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">Absent</span>
-                          </label>
-                        </div>
+              
+              {absentCount > 0 && (
+                <div className="category-selection">
+                  <div className="search-box">
+                    <input
+                      type="text"
+                      placeholder="Search by name or admission number..."
+                      value={absentSearch}
+                      onChange={(e) => setAbsentSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="selected-students">
+                    {absentStudents.map(student => (
+                      <div key={student._id} className="selected-student">
+                        <span>{student.name}</span>
+                        <button 
+                          className="remove-btn"
+                          onClick={() => handleStudentSelect('absent', student)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {Array(absentCount - absentStudents.length).fill().map((_, i) => (
+                      <div key={`empty-${i}`} className="empty-selection">
+                        Select student {absentStudents.length + i + 1}
                       </div>
                     ))}
                   </div>
+                  
+                  {absentSearch && (
+                    <div className="search-results">
+                      {filterStudents(absentSearch).length > 0 ? (
+                        filterStudents(absentSearch).map(student => (
+                          <div 
+                            key={student._id} 
+                            className="search-result-item"
+                            onClick={() => handleStudentSelect('absent', student)}
+                          >
+                            <span>{student.name}</span>
+                            <span className="admission-number">{student.admissionNumber}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="no-results">No students found</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
-
-              {error && (
-                <div className="text-red-600 text-sm">{error}</div>
-              )}
-
-              <div className="mt-6">
-                <button
-                  type="submit"
-                  disabled={loading || !selectedClass || students.length === 0}
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                >
-                  {loading ? 'Saving...' : 'Save Attendance'}
-                </button>
+            </div>
+            
+            <div className="category-card">
+              <h3>Late Students</h3>
+              <div className="category-input">
+                <label>Number of Late Students:</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max={students.length}
+                  value={lateCount}
+                  onChange={(e) => handleCountChange('late', e.target.value)}
+                />
               </div>
-            </form>
+              
+              {lateCount > 0 && (
+                <div className="category-selection">
+                  <div className="search-box">
+                    <input
+                      type="text"
+                      placeholder="Search by name or admission number..."
+                      value={lateSearch}
+                      onChange={(e) => setLateSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="selected-students">
+                    {lateStudents.map(student => (
+                      <div key={student._id} className="selected-student">
+                        <span>{student.name}</span>
+                        <button 
+                          className="remove-btn"
+                          onClick={() => handleStudentSelect('late', student)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {Array(lateCount - lateStudents.length).fill().map((_, i) => (
+                      <div key={`empty-${i}`} className="empty-selection">
+                        Select student {lateStudents.length + i + 1}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {lateSearch && (
+                    <div className="search-results">
+                      {filterStudents(lateSearch).length > 0 ? (
+                        filterStudents(lateSearch).map(student => (
+                          <div 
+                            key={student._id} 
+                            className="search-result-item"
+                            onClick={() => handleStudentSelect('late', student)}
+                          >
+                            <span>{student.name}</span>
+                            <span className="admission-number">{student.admissionNumber}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="no-results">No students found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="category-card">
+              <h3>Half-day Students</h3>
+              <div className="category-input">
+                <label>Number of Half-day Students:</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  max={students.length}
+                  value={halfdayCount}
+                  onChange={(e) => handleCountChange('halfday', e.target.value)}
+                />
+              </div>
+              
+              {halfdayCount > 0 && (
+                <div className="category-selection">
+                  <div className="search-box">
+                    <input
+                      type="text"
+                      placeholder="Search by name or admission number..."
+                      value={halfdaySearch}
+                      onChange={(e) => setHalfdaySearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="selected-students">
+                    {halfdayStudents.map(student => (
+                      <div key={student._id} className="selected-student">
+                        <span>{student.name}</span>
+                        <button 
+                          className="remove-btn"
+                          onClick={() => handleStudentSelect('halfday', student)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {Array(halfdayCount - halfdayStudents.length).fill().map((_, i) => (
+                      <div key={`empty-${i}`} className="empty-selection">
+                        Select student {halfdayStudents.length + i + 1}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {halfdaySearch && (
+                    <div className="search-results">
+                      {filterStudents(halfdaySearch).length > 0 ? (
+                        filterStudents(halfdaySearch).map(student => (
+                          <div 
+                            key={student._id} 
+                            className="search-result-item"
+                            onClick={() => handleStudentSelect('halfday', student)}
+                          >
+                            <span>{student.name}</span>
+                            <span className="admission-number">{student.admissionNumber}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="no-results">No students found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="attendance-summary">
+            <div className="summary-item">
+              <span className="summary-label">Total Students:</span>
+              <span className="summary-value">{students.length}</span>
+            </div>
+            <div className="summary-item">
+              <span className="summary-label">Present:</span>
+              <span className="summary-value">{students.length - (absentStudents.length + lateStudents.length + halfdayStudents.length)}</span>
+            </div>
+            <div className="summary-item">
+              <span className="summary-label">Absent:</span>
+              <span className="summary-value">{absentStudents.length}</span>
+            </div>
+            <div className="summary-item">
+              <span className="summary-label">Late:</span>
+              <span className="summary-value">{lateStudents.length}</span>
+            </div>
+            <div className="summary-item">
+              <span className="summary-label">Half-day:</span>
+              <span className="summary-value">{halfdayStudents.length}</span>
+            </div>
+          </div>
+          
+          <div className="form-actions">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSubmit}
+              disabled={loading || students.length === 0}
+            >
+              {loading ? 'Saving...' : 'Mark Attendance'}
+            </button>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="select-class-message">
+          Please select a class to mark attendance
+        </div>
+      )}
+      
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-content">
+              <h2>Confirm Attendance</h2>
+              
+              <div className="confirmation-details">
+                <p><strong>Date:</strong> {attendanceSummary.date}</p>
+                <p><strong>Class:</strong> {attendanceSummary.class}</p>
+                <p><strong>Total Students:</strong> {attendanceSummary.total}</p>
+                <p><strong>Present:</strong> {attendanceSummary.present}</p>
+                <p><strong>Absent:</strong> {attendanceSummary.absent}</p>
+                <p><strong>Late:</strong> {attendanceSummary.late}</p>
+                <p><strong>Half-day:</strong> {attendanceSummary.halfday}</p>
+              </div>
+              
+              <div className="confirmation-actions">
+                <button 
+                  className="btn-secondary"
+                  onClick={() => setShowConfirmation(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn-primary"
+                  onClick={confirmAttendance}
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+}

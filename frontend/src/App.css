@@ -1,0 +1,64 @@
+/*
+  ✨ Coded with vibes by Rowhit (@rohiteeee)
+
+  🔗 GitHub:   github.com/Rohitsingh385
+  💼 LinkedIn: linkedin.com/in/rohiteeee
+  📧 Email:    rk301855@gmail.com
+
+  🧃 If you're using this, toss some credit — it's only fair.
+  🧠 Built from scratch, not snatched. Respect the grind.
+  
+*/
+
+/* App.css - Global styles */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f3f4f6;
+  color: #333;
+  line-height: 1.6;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 18px;
+  color: #3b82f6;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Common utility classes */
+.text-center {
+  text-align: center;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+/* Form styles */
+input, select, textarea, button {
+  font-family: inherit;
+}

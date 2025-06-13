@@ -7,128 +7,135 @@ const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 
 // @route   POST api/auth/register
-// @desc    Register a user
+// @desc    Register user
 // @access  Public
-router.post('/register', async (req, res) => {
-  try {
+router.post(
+  '/register',
+  [
+    body('name', 'Name is required').not().isEmpty(),
+    body('email', 'Please include a valid email').isEmail(),
+    body('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 })
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { name, email, password, role } = req.body;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+    try {
+      // Check if user exists
+      let user = await User.findOne({ email });
+
+      if (user) {
+        return res.status(400).json({ message: 'User already exists' });
+      }
+
+      user = new User({
+        name,
+        email,
+        password,
+        role: role || 'staff'
+      });
+
+      // Encrypt password
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+
+      await user.save();
+
+      // Return jsonwebtoken
+      const payload = {
+        user: {
+          id: user.id,
+          role: user.role
+        }
+      };
+
+      jwt.sign(
+        payload,
+        process.env.JWT_SECRET || 'defaultsecret',
+        { expiresIn: '5 days' },
+        (err, token) => {
+          if (err) throw err;
+          res.json({ token });
+        }
+      );
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server error');
     }
-
-    // Create new user
-    user = new User({
-      name,
-      email,
-      password,
-      role: role || 'student'
-    });
-
-    await user.save();
-
-    // Create token
-    const payload = {
-      user: {
-        id: user.id,
-        role: user.role
-      }
-    };
-
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
-    );
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
   }
-});
+);
 
 // @route   POST api/auth/login
-// @desc    Login user & get token
+// @desc    Authenticate user & get token
 // @access  Public
-router.post('/login', async (req, res) => {
-  try {
+router.post(
+  '/login',
+  [
+    body('email', 'Please include a valid email').isEmail(),
+    body('password', 'Password is required').exists()
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    try {
+      // Check if user exists
+      let user = await User.findOne({ email });
 
-    // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Create token
-    const payload = {
-      user: {
-        id: user.id,
-        role: user.role
+      if (!user) {
+        return res.status(400).json({ message: 'Invalid Credentials' });
       }
-    };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ 
-          token,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role
-          }
-        });
+      // Check password
+      const isMatch = await bcrypt.compare(password, user.password);
+
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Invalid Credentials' });
       }
-    );
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
+
+      // Return jsonwebtoken
+      const payload = {
+        user: {
+          id: user.id,
+          role: user.role
+        }
+      };
+
+      jwt.sign(
+        payload,
+        process.env.JWT_SECRET || 'defaultsecret',
+        { expiresIn: '5 days' },
+        (err, token) => {
+          if (err) throw err;
+          res.json({ token });
+        }
+      );
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server error');
+    }
   }
-});
+);
 
-// @route   GET api/auth/user
-// @desc    Get user data
+// @route   GET api/auth
+// @desc    Get user by token
 // @access  Private
-router.get('/user', auth, async (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     res.json(user);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server error');
+    res.status(500).send('Server Error');
   }
 });
 
-// @route   GET api/auth/me
-// @desc    Get current user
-// @access  Private
-router.get('/me', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    res.json(user);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server error');
-  }
-});
-
-module.exports = router; 
+module.exports = router;

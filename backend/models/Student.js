@@ -10,35 +10,31 @@ const studentSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  class: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Class',
-    required: true
-  },
   dateOfBirth: {
-    type: Date,
-    required: true
+    type: Date
   },
   gender: {
     type: String,
-    enum: ['male', 'female', 'other'],
-    required: true
-  },
-  parentName: {
-    type: String,
-    required: true
-  },
-  parentContact: {
-    type: String,
-    required: true
+    enum: ['male', 'female', 'other']
   },
   address: {
-    type: String,
-    required: true
+    type: String
   },
-  profileImage: {
-    type: String,
-    default: ''
+  parentName: {
+    type: String
+  },
+  parentContact: {
+    type: String
+  },
+  class: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class'
+  },
+  section: {
+    type: String
+  },
+  rollNumber: {
+    type: String
   },
   admissionDate: {
     type: Date,
@@ -46,9 +42,13 @@ const studentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'transferred'],
+    enum: ['active', 'inactive', 'transferred', 'graduated'],
     default: 'active'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-module.exports = mongoose.model('Student', studentSchema); 
+module.exports = mongoose.model('Student', studentSchema);
